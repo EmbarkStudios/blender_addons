@@ -171,7 +171,6 @@ class InstantMeshesRemesh(bpy.types.Operator):
             subprocess.run([exe, output])
             self.open_ui = False
         else:
-            print(cmd)
             subprocess.run(cmd)
 
         bpy.ops.import_scene.obj(
@@ -183,10 +182,8 @@ class InstantMeshesRemesh(bpy.types.Operator):
         imported_mesh.location = self.loc
         imported_mesh.rotation_euler = self.rot
         imported_mesh.scale = self.scl
-        print(mesh, mesh.name)
         imported_mesh.name = mesh.name + '_remesh'
         for mat in mesh.data.materials:
-            print('setting mat: {}'.format(mat.name))
             imported_mesh.data.materials.append(mat)
         for edge in imported_mesh.data.edges:
             edge.use_edge_sharp = False
