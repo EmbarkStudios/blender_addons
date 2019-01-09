@@ -37,20 +37,21 @@ class InstantMeshesRemeshBatch(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        s = bpy.context.selected_objects
+        selection = bpy.context.selected_objects
         for other_obj in bpy.context.scene.objects:
             other_obj.select_set(False)
-        for i in s:
-            i.select_set(True)
-            bpy.context.view_layer.objects.active = i
+        for obj in selection:
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
             bpy.ops.object.instant_meshes_remesh()
-            remesh_obj = bpy.context.scene.objects["{}_remesh".format(i.name)]
+            remesh_name = "{}_remesh".format(obj.name)
+            remesh_obj = bpy.context.scene.objects[remesh_name]
             if remesh_obj:
-                for slot, mat in enumerate(i.data.materials):
+                for slot, mat in enumerate(obj.data.materials):
                     mat_slot = remesh_obj.data.materials[slot]
                     mat_slot = mat.copy()
                     mat_slot.diffuse_color = (0.3, 1.0, 0.3)
-            i.select_set(False)
+            obj.select_set(False)
             bpy.context.view_layer.objects.active = None
         return {'FINISHED'}
 
@@ -98,7 +99,7 @@ class InstantMeshesRemesh(bpy.types.Operator):
         description="Number of smoothing & ray tracing reprojection steps",
         default=2, min=0, max=10,
     )
-    openUI = bpy.props.BoolProperty(
+    open_ui = bpy.props.BoolProperty(
         name="Open in InstantMeshes",
         description=("Open selected object in Instant Meshes and import the " +
                      "result when you are done."),
@@ -116,10 +117,9 @@ class InstantMeshesRemesh(bpy.types.Operator):
         output = os.path.join(tempfile.gettempdir(), 'out.obj')
 
         if not self.exported:
-            try:
+            if os.path.isfile(orig):
                 os.remove(orig)
-            except:
-                pass
+
             self.meshname = bpy.context.active_object.name
             mesh = bpy.context.active_object
             self.loc = mesh.matrix_world.to_translation()
@@ -165,11 +165,11 @@ class InstantMeshesRemesh(bpy.types.Operator):
             options.append('-b')
 
         cmd = [exe] + options + [orig]
-        if self.openUI:
+        if self.open_ui:
             os.chdir(os.path.dirname(orig))
             shutil.copy2(orig, output)
             subprocess.run([exe, output])
-            self.openUI = False
+            self.open_ui = False
         else:
             print(cmd)
             subprocess.run(cmd)
@@ -185,9 +185,9 @@ class InstantMeshesRemesh(bpy.types.Operator):
         imported_mesh.scale = self.scl
         print(mesh, mesh.name)
         imported_mesh.name = mesh.name + '_remesh'
-        for i in mesh.data.materials:
-            print('setting mat: {}'.format(i.name))
-            imported_mesh.data.materials.append(i)
+        for mat in mesh.data.materials:
+            print('setting mat: {}'.format(mat.name))
+            imported_mesh.data.materials.append(mat)
         for edge in imported_mesh.data.edges:
             edge.use_edge_sharp = False
         for other_obj in bpy.context.scene.objects:
@@ -211,8 +211,23 @@ class InstantMeshesRemesh(bpy.types.Operator):
         mesh.hide_viewport = True
         mesh.hide_render = True
         imported_mesh.select_set(False)
-        os.remove(output)
+
+        if os.path.isfile(output):
+            os.remove(output)
+
         return {'FINISHED'}
+
+
+def remove_temp_file(file_names):
+    """Delete file_name from the system's temporary folder."""
+
+    if isinstance(file_names, list):
+        for file_name in file_names:
+            remove_temp_file(file_name)
+    elif isinstance(file_names, str):
+        file_path = os.path.join(tempfile.gettempdir(), file_names)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
 
 
 def menu_func(self, context):
@@ -225,11 +240,7 @@ def register():
     bpy.utils.register_class(InstantMeshesRemeshBatch)
     bpy.utils.register_class(InstantMeshesRemeshPrefs)
     bpy.types.VIEW3D_MT_object.append(menu_func)
-    try:
-        os.remove(os.path.join(tempfile.gettempdir(), 'original.obj'))
-        os.remove(os.path.join(tempfile.gettempdir(), 'out.obj'))
-    except:
-        pass
+    remove_temp_file(['original.obj', 'out.obj'])
 
 
 def unregister():
