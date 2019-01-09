@@ -1,8 +1,9 @@
-
 bl_info = {
     "name": "Instant Meshes Remesh",
     "author": "knekke",
+    "blender": (2, 80, 0),
     "category": "Object",
+    "wiki_url": "https://github.com/knekke/blender_addons",
 }
 
 import bpy
@@ -16,14 +17,15 @@ class InstantMeshesRemeshPrefs(bpy.types.AddonPreferences):
     bl_idname = __name__
 
     filepath = bpy.props.StringProperty(
-            name="Instant Meshes Executable",
-            subtype='FILE_PATH',
-            )
+        name="Instant Meshes Executable",
+        subtype='FILE_PATH',
+    )
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="""Please specify the path to 'Instant Meshes.exe'
-            Get it from https://github.com/wjakob/instant-meshes""")
+        msg = "Please specify the path to 'Instant Meshes.exe' - "
+        msg += "get it from https://github.com/wjakob/instant-meshes"
+        layout.label(text=msg)
         layout.prop(self, "filepath")
 
 
@@ -35,17 +37,20 @@ class InstantMeshesRemeshBatch(bpy.types.Operator):
 
     def execute(self, context):
         s = bpy.context.selected_objects
-        for other_obj in bpy.data.objects:
-                    other_obj.select = False
+        for other_obj in bpy.context.scene.objects:
+            other_obj.select_set(False)
         for i in s:
-            i.select = True
-            bpy.context.scene.objects.active = i
+            i.select_set(True)
+            bpy.context.view_layer.objects.active = i
             bpy.ops.object.instant_meshes_remesh()
-            for slot, mat in enumerate(i.data.materials):
-                bpy.data.objects[i.name+'_remesh'].data.materials[slot] = mat.copy() 
-                bpy.data.objects[i.name+'_remesh'].data.materials[slot].diffuse_color = (0.3,1,0.3)
-            i.select = False
-            bpy.context.scene.objects.active = None
+            remesh_obj = bpy.context.scene.objects["{}_remesh".format(i.name)]
+            if remesh_obj:
+                for slot, mat in enumerate(i.data.materials):
+                    mat_slot = remesh_obj.data.materials[slot]
+                    mat_slot = mat.copy()
+                    mat_slot.diffuse_color = (0.3, 1.0, 0.3)
+            i.select_set(False)
+            bpy.context.view_layer.objects.active = None
         return {'FINISHED'}
 
 class InstantMeshesRemesh(bpy.types.Operator):
@@ -70,7 +75,7 @@ class InstantMeshesRemesh(bpy.types.Operator):
     meshname = None
  
     def execute(self, context):
-        exe = context.user_preferences.addons[__name__].preferences.filepath
+        exe = context.preferences.addons[__name__].preferences.filepath
         orig = os.path.join(tempfile.gettempdir(),'original.obj')
         output = os.path.join(tempfile.gettempdir(),'out.obj')
 
@@ -104,8 +109,8 @@ class InstantMeshesRemesh(bpy.types.Operator):
             mesh.rotation_euler = self.rot
             mesh.scale = self.scl
 
-        mesh = bpy.data.objects[self.meshname]
-        mesh.hide = False
+        mesh = bpy.context.scene.objects[self.meshname]
+        mesh.hide_viewport = False
         options = ['-c', str(self.crease), 
                 '-v', str(self.verts),
                 '-S', str(self.smooth),
@@ -126,6 +131,7 @@ class InstantMeshesRemesh(bpy.types.Operator):
             subprocess.run([exe, output])
             self.openUI = False
         else:
+            print(cmd)
             subprocess.run(cmd)
         
         bpy.ops.import_scene.obj(filepath=output, 
@@ -138,26 +144,26 @@ class InstantMeshesRemesh(bpy.types.Operator):
         print(mesh, mesh.name)
         imported_mesh.name = mesh.name + '_remesh'
         for i in mesh.data.materials:
-            print('setting mat: ' +i.name)
+            print('setting mat: {}'.format(i.name))
             imported_mesh.data.materials.append(i)
         for edge in imported_mesh.data.edges:
             edge.use_edge_sharp = False
-        for other_obj in bpy.data.objects:
-            other_obj.select = False
-        imported_mesh.select = True
+        for other_obj in bpy.context.scene.objects:
+            other_obj.select_set(False)
+        imported_mesh.select_set(True)
         bpy.ops.object.shade_flat()
-        mesh.select = True
-        bpy.context.scene.objects.active = mesh
+        mesh.select_set(True)
+        bpy.context.view_layer.objects.active = mesh
         bpy.ops.object.data_transfer(use_reverse_transfer=False, 
                                         use_freeze=False, data_type='UV', use_create=True, vert_mapping='NEAREST', 
                                         edge_mapping='NEAREST', loop_mapping='NEAREST_POLYNOR', poly_mapping='NEAREST', 
                                         use_auto_transform=False, use_object_transform=True, use_max_distance=False, 
                                         max_distance=1.0, ray_radius=0.0, islands_precision=0.1, layers_select_src='ACTIVE',
                                         layers_select_dst='ACTIVE', mix_mode='REPLACE', mix_factor=1.0)
-        mesh.select = False
-        mesh.hide = True
+        mesh.select_set(False)
+        mesh.hide_viewport = True
         mesh.hide_render = True
-        imported_mesh.select = False
+        imported_mesh.select_set(False)
         os.remove(output)
         return {'FINISHED'}
 
