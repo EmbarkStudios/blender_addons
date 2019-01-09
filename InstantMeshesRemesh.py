@@ -212,6 +212,9 @@ class InstantMeshesRemesh(bpy.types.Operator):
         if os.path.isfile(output):
             os.remove(output)
 
+        # FIXME: Needed because transform doesn't update after prefs change.
+        imported_mesh.location = self.loc
+
         return {'FINISHED'}
 
 
